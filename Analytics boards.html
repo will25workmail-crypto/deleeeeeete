@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D A T A</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #000;
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 0.5px solid #fff;
+            z-index: 100;
+            height: 10vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #000;
+            height: 4vh;
+            z-index: 100;
+            opacity: 0.3;
+            filter: blur(4px);
+            transition: opacity 0.8s ease, filter 0.8s ease;
+        }
+        .footer.fade-in {
+            opacity: 1;
+            filter: blur(0);
+        }
+        .blur-overlay {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40vh; /* covers the lower part of the screen */
+            background: linear-gradient(to top, #000 0%, transparent 100%);
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 99;
+        }
+        .content {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+            padding-top: 15vh;
+            padding-bottom: 30px;
+        }
+        .month-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: transparent;
+            border: 0.5px solid #fff;
+            border-radius: 12px;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 8px;
+            font-weight: 300;
+        }
+        h2 {
+            font-size: 20px;
+            margin: 0 0 12px 0;
+            font-weight: 100;
+        }
+        .totals {
+            font-size: 20px;
+            margin: 10px 0;
+            font-weight: 100;
+        }
+        .sold { color: #00ff00; font-weight: 100; }
+        .lost { color: #ff0000; font-weight: 100; }
+        .leads { color: #fff; font-size: 18px; margin-top: 8px; font-weight: 100; }
+        .loading { color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>- D A T A -</h1>
+    </div>
+    <div class="content">
+        <div id="content">
+            <div class="loading">Loading data...</div>
+        </div>
+    </div>
+    <div class="footer" id="footer"></div>
+    <div class="blur-overlay"></div>
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwkTpWqOnEUHXhpIHYw3nyUOy6290pO38NLeaOpDDkUWY2EMyhXsE3PX9-ssD9PzWDi7Q/exec';
+        async function loadData() {
+            try {
+                const res = await fetch(API_URL);
+                const rows = await res.json();
+                displayAllMonths(rows);
+            } catch (err) {
+                document.getElementById('content').innerHTML = '<div class="loading">Error: ' + err.message + '</div>';
+            }
+        }
+        function displayAllMonths(rows) {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const months = { 'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                             'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12 };
+            const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+                                'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+            const counts = Array(12).fill().map(() => ({ sold: 0, lost: 0, leads: 0 }));
+            const uniqueLeads = new Set();
+            rows.forEach(row => {
+                const dateString = row['L1: Booking confirmed'];
+                if (!dateString) return;
+                const splitDate = dateString.toLowerCase().split('-');
+                if (splitDate.length < 3) return;
+                const monthStr = splitDate[0];
+                const yearNum = parseInt(splitDate[2], 10);
+                const monthNum = months[monthStr];
+                if (!monthNum || yearNum !== currentYear) return;
+                const leadStage = (row['Stage'] || '').toLowerCase();
+                const isSoldOrLost = leadStage === 'sold' || leadStage === 'lost';
+                const uniqueKey = `${dateString}-${row['Phone'] || ''}-${row['Email'] || ''}`;
+                if (uniqueLeads.has(uniqueKey)) return;
+                uniqueLeads.add(uniqueKey);
+                if (isSoldOrLost) {
+                    if (leadStage === 'sold') counts[monthNum - 1].sold++;
+                    else counts[monthNum - 1].lost++;
+                }
+                counts[monthNum - 1].leads++;
+            });
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '';
+            monthNames.forEach((name, index) => {
+                const { sold, lost, leads } = counts[index];
+                const section = document.createElement('div');
+                section.className = 'month-section';
+                section.innerHTML = `
+                    <h2>${name} ${currentYear}</h2>
+                    <div class="totals"><span class="sold">Sold: ${sold}</span> | <span class="lost">Lost: ${lost}</span></div>
+                    <div class="leads">Leads: ${leads}</div>
+                `;
+                contentDiv.appendChild(section);
+                // Fade in each month with delay
+                setTimeout(() => {
+                    section.classList.add('visible');
+                }, 200 + index * 300);
+            });
+            // Fade in the bottom bar
+            setTimeout(() => {
+                document.getElementById('footer').classList.add('fade-in');
+            }, 300);
+        }
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>
